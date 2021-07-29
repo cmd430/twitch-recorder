@@ -69,7 +69,7 @@ async function init () {
 }
 
 const exit = signal => {
-  if (state.downloading) logger.info(`${chalk.yellowBright('•')} ${chalk.reset(`Recording of '${config.channel}' live ${twitch.isVOD ? 'VOD' : 'stream'} aborted; a partial stream may have been saved`)}`)
+  if (state.downloading) logger.info(`${chalk.yellowBright('•')} ${chalk.reset(`Recording of '${config.channel}' live ${twitch.isVOD ? 'VOD' : 'stream'} aborted; a partial ${twitch.isVOD ? 'VOD' : 'stream'} may have been saved`)}`)
   if (signal === 'SIGINT' || signal === 'SIGHUP') {
     logger.debug(`Signal ${signal} recevied Application Exiting...`)
     process.exit(0)
