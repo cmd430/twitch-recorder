@@ -1,0 +1,21 @@
+{
+  "name": "twitch-recorder",
+  "version": "0.0.1",
+  "description": "Record Twitch Live stream",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Bradley 'Bred/cmd430' Treweek",
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^4.1.1",
+    "lodash.merge": "^4.6.2",
+    "m3u8-parser": "^4.7.0",
+    "m3u8stream": "^0.8.4",
+    "minimist": "^1.2.5",
+    "node-fetch": "^2.6.1",
+    "strip-ansi": "^6.0.0",
+    "twitch-realtime": "github:cmd430/twitch-realtime"
+  }
+}

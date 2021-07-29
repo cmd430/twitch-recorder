@@ -1,0 +1,15 @@
+{
+  "channel": "TwitchUser",
+  "recorder": {
+    "auth": null,
+    "quality": "best",
+    "template": "recordings\\:shortYear.:month.:day :period -- :channel"
+  },
+  "time": {
+    "timezone": "Europe/London",
+    "timezoneFormat": "en-GB"
+  },
+  "developer": {
+    "debug": false
+  }
+}
