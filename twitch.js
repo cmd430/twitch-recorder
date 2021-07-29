@@ -17,6 +17,8 @@ class Twitch extends EventEmitter {
     this.lowLatency = options.lowLatency ?? false
     this.clientAuth = options.auth ?? null
     this.logger = options.logger ? options.logger : console
+    this.tryVOD = options.tryVOD
+    this.isVOD = false
 
     this.#setupPubSub()
   }
@@ -43,6 +45,46 @@ class Twitch extends EventEmitter {
       })).json())
 
       return channelID.data.user.id
+    } catch (error) {
+      this.logger.error(error)
+
+      return null
+    }
+  }
+
+  async #getVODID () {
+    try {
+      const postData = JSON.stringify({
+        query: `
+          query {
+            user(login: "${this.channel}") {
+              videos(first: 1) {
+                edges {
+                  node {
+                    id
+                    status
+                  }
+                }
+              }
+            }
+          }
+        `
+      })
+
+      const vodID = (await (await fetch('https://gql.twitch.tv/gql', {
+        method: 'POST',
+        headers: {
+          'Client-ID': `${Twitch.#clientID}`,
+          'Content-Length': postData.length
+        },
+        body: postData
+      })).json())
+
+      const vod = vodID.data.user.videos.edges[0].node
+
+      if (vod.status.toLowerCase() === 'recording') return vodID.data.user.videos.edges[0].node.id
+      return null
+
     } catch (error) {
       this.logger.error(error)
 
@@ -123,9 +165,50 @@ class Twitch extends EventEmitter {
     }
   }
 
-  async #getMasterPlaylist () {
+  async #getVODToken () {
     try {
-      const authToken = await this.#getStreamToken()
+      const postData = JSON.stringify({
+        query: `
+          query {
+            videoPlaybackAccessToken(id: "${await this.#getVODID()}", params: {
+              platform: "web",
+              playerBackend: "mediaplayer",
+              playerType: "site"
+            }) {
+              value
+              signature
+            }
+          }
+        `
+      })
+
+      const accessToken = (await (await fetch('https://gql.twitch.tv/gql', {
+        method: 'POST',
+        headers: {
+          'Client-ID': `${Twitch.#clientID}`,
+          'Authorization': this.clientAuth ? `OAuth ${this.clientAuth}` : '',
+          'Content-Length': postData.length
+        },
+        body: postData
+      })).json())
+
+      return {
+        token: accessToken.data.videoPlaybackAccessToken.value,
+        sig: accessToken.data.videoPlaybackAccessToken.signature
+      }
+    } catch (error) {
+      this.logger.error(error)
+
+      return {
+        token: null,
+        sig: null
+      }
+    }
+  }
+
+  async #getMasterPlaylist (isVOD = false) {
+    try {
+      const authToken = isVOD ? await this.#getVODToken() : await this.#getStreamToken()
       const usherParams = [
         'allow_source=true',
         'allow_audio_only=true',
@@ -140,7 +223,22 @@ class Twitch extends EventEmitter {
         `p=${Math.floor(100000 + Math.random() * 900000)}`,
         'type=any'
       ]
-      const masterPlaylist = (await (await fetch(`https://usher.ttvnw.net/api/channel/hls/${this.channel}.m3u8?${usherParams.join('&')}`, {
+
+      let vodID = null
+      if (isVOD) {
+        this.logger.debug(`trying VOD`)
+
+        vodID = await this.#getVODID()
+
+        if (vodID === null) {
+          this.logger.debug(`found VOD ID: false`)
+          return ''
+        }
+
+        this.logger.debug(`found VOD ID: true (${vodID})`)
+      }
+
+      const masterPlaylist = (await (await fetch(`https://usher.ttvnw.net/${isVOD ? `vod/${vodID}` : `api/channel/hls/${this.channel}`}.m3u8?${usherParams.join('&')}`, {
         headers: {
           'Client-ID': `${Twitch.#clientID}`
         }
@@ -154,13 +252,33 @@ class Twitch extends EventEmitter {
     }
   }
 
-  async #loadMsterPlaylist () {
-    const masterPlaylist = new m3u8Parser.Parser()
+  async #loadMsterPlaylist (checkLive = false) {
+    if (!checkLive) {
+      if (this.tryVOD) {
+        const masterPlaylistVOD = new m3u8Parser.Parser()
+        masterPlaylistVOD.push(await this.#getMasterPlaylist(true))
+        masterPlaylistVOD.end()
 
-    masterPlaylist.push(await this.#getMasterPlaylist())
-    masterPlaylist.end()
+        const masterPlaylist = masterPlaylistVOD.manifest.playlists ?? []
+        if (masterPlaylist.length > 0) {
+          this.logger.debug(`is VOD: true`)
+          this.isVOD = true
 
-    return masterPlaylist.manifest.playlists ?? []
+          return masterPlaylist
+        }
+      }
+    }
+
+    const masterPlaylistStream = new m3u8Parser.Parser()
+    masterPlaylistStream.push(await this.#getMasterPlaylist())
+    masterPlaylistStream.end()
+
+    if (!checkLive) {
+      this.logger.debug(`is VOD: false`)
+      this.isVOD = false
+    }
+
+    return masterPlaylistStream.manifest.playlists ?? []
   }
 
   async #getPlaylist (quality = 'best') {
@@ -182,7 +300,7 @@ class Twitch extends EventEmitter {
   }
 
   async isLive () {
-    return (await this.#loadMsterPlaylist()).length > 0
+    return (await this.#loadMsterPlaylist(true)).length > 0
   }
 
   async getStream () {

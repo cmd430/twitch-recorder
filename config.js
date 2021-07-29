@@ -8,6 +8,7 @@ const configDefaults = {
   recorder: {
     auth: null,
     quality: 'best',
+    tryVOD: false,
     lowLatency: false,
     template: join('.', 'recordings', ':shortYear.:month.:day :period -- :channel')
   },
@@ -31,6 +32,7 @@ const configArgs = {
   recorder: {
     auth: minimist.auth,
     quality: minimist.quality,
+    tryVOD: minimist.vod,
     lowLatency: minimist.lowLatency,
     template: minimist.template
   },
@@ -67,7 +69,9 @@ if (minimist.help) {
                                             Accepts qualities by height (e.g ${chalk.grey(`1080/720`)}), ${chalk.grey(`source`)}, and ${chalk.grey(`best`)}
                                             Default: ${chalk.grey(`best`)}
 
-          --lowLatency                                      Set the Twitch stream to low latency mode
+          --vod                                               Attempt to download from 'live' VOD
+
+          --lowLatency                                        Set the Twitch stream to low latency mode
 
           --template=${chalk.grey(`"<template>"`)}    Set template and path for recorded streams, if path does not exit it will be created
                                             Accepts tokens; :channel, :date, :time, :day, :month, :year, :shortYear, :period

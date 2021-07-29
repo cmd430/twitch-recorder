@@ -20,6 +20,7 @@ const twitch = new Twitch({
   channel: config.channel,
   lowLatency: config.recorder.lowLatency,
   auth: config.recorder.auth,
+  tryVOD: config.recorder.tryVOD,
   logger: logger
 })
 
@@ -34,16 +35,16 @@ const downloader = new Downloader({
 logger.debug('Using config:', JSON.stringify(config, null, 2))
 
 downloader.on('start', () => {
-  logger.info(`${chalk.cyanBright('•')} ${chalk.reset(`Recording '${config.channel}' live stream to file`)}`)
+  logger.info(`${chalk.cyanBright('•')} ${chalk.reset(`Recording '${config.channel}' live ${twitch.isVOD ? 'VOD' : 'stream'} to file`)}`)
   state.downloading = true
 })
 downloader.on('finish', () => {
-  logger.info(`${chalk.greenBright('•')} ${chalk.reset(`Recording of '${config.channel}' live stream completed`)}`)
+  logger.info(`${chalk.greenBright('•')} ${chalk.reset(`Recording of '${config.channel}' live ${twitch.isVOD ? 'VOD' : 'stream'} completed`)}`)
   state.downloading = false
 })
 downloader.on('error', error => {
   if (state.downloading) {
-    logger.info(`${chalk.yellowBright('•')} ${chalk.reset(`Recording of '${config.channel}' live stream error; a partial stream may have been saved`)}`)
+    logger.info(`${chalk.yellowBright('•')} ${chalk.reset(`Recording of '${config.channel}' live ${twitch.isVOD ? 'VOD' : 'stream'} error; a partial ${twitch.isVOD ? 'VOD' : 'stream'} may have been saved`)}`)
     state.downloading = false
   }
   logger.error(error)
@@ -68,7 +69,7 @@ async function init () {
 }
 
 const exit = signal => {
-  if (state.downloading) logger.info(`${chalk.yellowBright('•')} ${chalk.reset(`Recording of '${config.channel}' live stream aborted; a partial stream may have been saved`)}`)
+  if (state.downloading) logger.info(`${chalk.yellowBright('•')} ${chalk.reset(`Recording of '${config.channel}' live ${twitch.isVOD ? 'VOD' : 'stream'} aborted; a partial stream may have been saved`)}`)
   if (signal === 'SIGINT' || signal === 'SIGHUP') {
     logger.debug(`Signal ${signal} recevied Application Exiting...`)
     process.exit(0)
