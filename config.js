@@ -23,7 +23,7 @@ const configDefaults = {
 
 let configUser = {}
 try {
-  configUser = minimist.config ? require(resolve(minimist.config)) : require('./config.json')
+  configUser = minimist.config ? require(resolve(minimist.config)) : require(join(process.cwd(), 'config.json'))
 } catch (error) {}
 
 const configArgs = {
