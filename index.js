@@ -57,13 +57,13 @@ downloader.on('error', error => {
 twitch.on('live', async () => {
   if (twitch.isVOD) return
   state.live = true
-  logger.info(`${config.channel} is ${chalk.greenBright('live')}`)
+  logger.info(`${chalk.cyanBright(config.channel)} is ${chalk.greenBright('live')}`)
   downloader.start(await twitch.getStream('best'))
 })
 twitch.on('offline', async () => {
   if (twitch.isVOD) return
   state.live = false
-  logger.info(`${config.channel} is ${chalk.redBright('offline')}`)
+  logger.info(`${chalk.cyanBright(config.channel)} is ${chalk.redBright('offline')}`)
 })
 twitch.on('error', async message => {
   logger.info(`${chalk.redBright('•')} ${chalk.reset(`${twitch.isVOD ? 'Download' : 'Recording'} of ${twitch.isVOD ? 'VOD' : 'Stream'} failed: ${message}`)}`)
@@ -71,7 +71,7 @@ twitch.on('error', async message => {
 
 async function init () {
   if (twitch.isVOD) {
-    logger.info(`Channel ${config.channel}`)
+    logger.info(`Channel '${chalk.cyanBright(config.channel)}'`)
     return downloader.start(await twitch.getVOD('best'))
   }
   if (await twitch.isLive()) {
