@@ -1,4 +1,4 @@
-const { createWriteStream, mkdir } = require('fs')
+const { createWriteStream, mkdirSync } = require('fs')
 const chalk = require('chalk')
 const stripAnsi = require('strip-ansi')
 
@@ -15,9 +15,7 @@ class Logger {
     this.debugMode = options.debug ?? false
     this.timezoneFormat = options.timezoneFormat ?? 'en-GB'
 
-    mkdir(`${this.directory}`, { recursive: true }, err => {
-      if (err) throw err
-    })
+    mkdirSync(`${this.directory}`, { recursive: true })
 
     Logger.#logOut = createWriteStream(`${this.directory}/out.log`, {
       flags: 'w'

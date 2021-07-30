@@ -29,6 +29,10 @@ const downloader = new Downloader({
   channel: config.channel,
   timezone: config.time.timezone,
   timezoneFormat: config.time.timezoneFormat,
+  downloadOptions: {
+    maxRetries: config.recorder.download.maxRetries,
+    maxReconnects: config.recorder.download.maxReconnects
+  },
   logger: logger
 })
 
@@ -44,7 +48,7 @@ downloader.on('finish', () => {
 })
 downloader.on('error', error => {
   if (state.downloading) {
-    logger.info(`${chalk.yellowBright('•')} ${chalk.reset(`Recording of '${config.channel}' live ${twitch.isVOD ? 'VOD' : 'stream'} error; a partial ${twitch.isVOD ? 'VOD' : 'stream'} may have been saved`)}`)
+    logger.info(`${chalk.yellowBright('•')} ${chalk.reset(`Recording of '${config.channel}' live ${twitch.isVOD ? 'VOD' : 'stream'} error`)}`)
     state.downloading = false
   }
   logger.error(error)

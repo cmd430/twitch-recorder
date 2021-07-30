@@ -1,5 +1,5 @@
 const EventEmitter = require('events')
-const { createWriteStream, mkdir, access, rename, F_OK } = require('fs')
+const { createWriteStream, mkdirSync, access, rename, F_OK } = require('fs')
 const { basename, dirname, resolve, join } = require('path')
 const m3u8Stream = require('m3u8stream')
 
@@ -14,6 +14,7 @@ class Downloader extends EventEmitter {
     this.channel = options.channel ?? ''
     this.timezone = options.timezone
     this.timezoneFormat = options.timezoneFormat
+    this.downloadOptions = options.downloadOptions
     this.logger = options.logger ? options.logger : console
   }
 
@@ -112,9 +113,7 @@ class Downloader extends EventEmitter {
         filename = filename.replace(/[!?%*:;|"'<>`\0]/g, '-') // unix invaild filename chars
       }
 
-      mkdir(`${dirname(resolve(filename))}`, { recursive: true }, err => {
-        if (err) throw err
-      })
+      mkdirSync(`${dirname(resolve(filename))}`, { recursive: true })
 
       filename = await this.#reserveFile({ basefile: filename })
 
@@ -133,7 +132,9 @@ class Downloader extends EventEmitter {
 
   async start (URL) {
     try {
-      return m3u8Stream(URL)
+      return m3u8Stream(URL, {
+        requestOptions: this.downloadOptions
+      })
       .once('response', () => this.emit('start'))
       .on('end', () => this.emit('finish'))
       .on('error', error => this.emit('error', error))

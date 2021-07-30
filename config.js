@@ -10,7 +10,11 @@ const configDefaults = {
     quality: 'best',
     tryVOD: false,
     lowLatency: false,
-    template: join('.', 'recordings', ':shortYear.:month.:day :period -- :channel')
+    template: join('.', 'recordings', ':shortYear.:month.:day :period -- :channel'),
+    download: {
+      maxRetries: 5,
+      maxReconnects: 2
+    }
   },
   time: {
     timezone: 'Europe/London',
