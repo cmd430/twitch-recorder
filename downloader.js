@@ -132,6 +132,7 @@ class Downloader extends EventEmitter {
 
   async start (URL) {
     try {
+      if (!URL) return
       return m3u8Stream(URL, {
         requestOptions: this.downloadOptions
       })

@@ -20,7 +20,7 @@ const twitch = new Twitch({
   channel: config.channel,
   lowLatency: config.recorder.lowLatency,
   auth: config.recorder.auth,
-  tryVOD: config.recorder.tryVOD,
+  lastVOD: config.recorder.lastVOD,
   logger: logger
 })
 
@@ -39,41 +39,49 @@ const downloader = new Downloader({
 logger.debug('Using config:', JSON.stringify(config, null, 2))
 
 downloader.on('start', () => {
-  logger.info(`${chalk.cyanBright('•')} ${chalk.reset(`Recording '${config.channel}' live ${twitch.isVOD ? 'VOD' : 'stream'} to file`)}`)
+  logger.info(`${chalk.cyanBright('•')} ${chalk.reset(`${twitch.isVOD ? 'Downloading' : 'Recording'} '${config.channel}' ${twitch.isVOD ? 'VOD' : 'live stream'} to file`)}`)
   state.downloading = true
 })
 downloader.on('finish', () => {
-  logger.info(`${chalk.greenBright('•')} ${chalk.reset(`Recording of '${config.channel}' live ${twitch.isVOD ? 'VOD' : 'stream'} completed`)}`)
+  logger.info(`${chalk.greenBright('•')} ${chalk.reset(`${twitch.isVOD ? 'Download' : 'Recording'} of '${config.channel}' ${twitch.isVOD ? 'VOD' : 'live stream'} completed`)}`)
   state.downloading = false
 })
 downloader.on('error', error => {
   if (state.downloading) {
-    logger.info(`${chalk.yellowBright('•')} ${chalk.reset(`Recording of '${config.channel}' live ${twitch.isVOD ? 'VOD' : 'stream'} error`)}`)
+    logger.info(`${chalk.redBright('•')} ${chalk.reset(`${twitch.isVOD ? 'Download' : 'Recording'} of '${config.channel}' ${twitch.isVOD ? 'VOD' : 'live stream'} error; a partial ${twitch.isVOD ? 'download' : 'recording'} has been saved`)}`)
     state.downloading = false
   }
   logger.error(error)
 })
 
 twitch.on('live', async () => {
+  if (twitch.isVOD) return
   state.live = true
   logger.info(`${config.channel} is ${chalk.greenBright('live')}`)
   downloader.start(await twitch.getStream('best'))
 })
-twitch.on('offline', () => {
+twitch.on('offline', async () => {
+  if (twitch.isVOD) return
   state.live = false
   logger.info(`${config.channel} is ${chalk.redBright('offline')}`)
 })
+twitch.on('error', async message => {
+  logger.info(`${chalk.redBright('•')} ${chalk.reset(`${twitch.isVOD ? 'Download' : 'Recording'} Failed: ${message}`)}`)
+})
 
 async function init () {
+  if (twitch.isVOD) {
+    return downloader.start(await twitch.getVOD('best'))
+  }
   if (await twitch.isLive()) {
-    twitch.emit('live')
+    return twitch.emit('live')
   } else {
-    twitch.emit('offline')
+    return twitch.emit('offline')
   }
 }
 
 const exit = signal => {
-  if (state.downloading) logger.info(`${chalk.yellowBright('•')} ${chalk.reset(`Recording of '${config.channel}' live ${twitch.isVOD ? 'VOD' : 'stream'} aborted; a partial ${twitch.isVOD ? 'VOD' : 'stream'} may have been saved`)}`)
+  if (state.downloading) logger.info(`${chalk.yellowBright('•')} ${chalk.reset(`${twitch.isVOD ? 'Download' : 'Recording'} of '${config.channel}' ${twitch.isVOD ? 'VOD' : 'live stream'} aborted; a partial ${twitch.isVOD ? 'download' : 'recording'} has been saved`)}`)
   if (signal === 'SIGINT' || signal === 'SIGHUP') {
     logger.debug(`Signal ${signal} recevied Application Exiting...`)
     process.exit(0)

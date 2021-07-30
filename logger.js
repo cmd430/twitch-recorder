@@ -58,6 +58,7 @@ class Logger {
     Logger.#logErr.write(`${stripAnsi(formatted)}\n`)
     Logger.#logCombined.write(`${stripAnsi(formatted)}\n`)
 
+    if (!this.debugMode) return
     console.error(formatted)
   }
 

@@ -17,8 +17,9 @@ class Twitch extends EventEmitter {
     this.lowLatency = options.lowLatency ?? false
     this.clientAuth = options.auth ?? null
     this.logger = options.logger ? options.logger : console
-    this.tryVOD = options.tryVOD
-    this.isVOD = false
+    this.isVOD = options.lastVOD
+
+    this.subOnlyVOD = false
 
     this.#setupPubSub()
   }
@@ -58,7 +59,7 @@ class Twitch extends EventEmitter {
         query: `
           query {
             user(login: "${this.channel}") {
-              videos(first: 1) {
+              videos(first: 2, type: ARCHIVE) {
                 edges {
                   node {
                     id
@@ -71,6 +72,8 @@ class Twitch extends EventEmitter {
         `
       })
 
+      this.logger.debug(`Getting VOD ID`)
+
       const vodID = (await (await fetch('https://gql.twitch.tv/gql', {
         method: 'POST',
         headers: {
@@ -80,13 +83,18 @@ class Twitch extends EventEmitter {
         body: postData
       })).json())
 
-      const vod = vodID.data.user.videos.edges[0].node
+      const VOD = vodID.data.user.videos.edges.find(vod => vod.node.status === 'RECORDED')?.node
 
-      if (vod.status.toLowerCase() === 'recording') return vodID.data.user.videos.edges[0].node.id
+      if (VOD) {
+        this.logger.debug(`Found VOD ID: true (${VOD.id})`)
+        return VOD.id
+      }
+      this.logger.debug(`Found VOD ID: false`)
       return null
 
     } catch (error) {
       this.logger.error(error)
+      this.logger.debug(`Found VOD ID: false`)
 
       return null
     }
@@ -167,10 +175,11 @@ class Twitch extends EventEmitter {
 
   async #getVODToken () {
     try {
+      const VODID = await this.#getVODID()
       const postData = JSON.stringify({
         query: `
           query {
-            videoPlaybackAccessToken(id: "${await this.#getVODID()}", params: {
+            videoPlaybackAccessToken(id: "${VODID}", params: {
               platform: "web",
               playerBackend: "mediaplayer",
               playerType: "site"
@@ -194,21 +203,24 @@ class Twitch extends EventEmitter {
 
       return {
         token: accessToken.data.videoPlaybackAccessToken.value,
-        sig: accessToken.data.videoPlaybackAccessToken.signature
+        sig: accessToken.data.videoPlaybackAccessToken.signature,
+        id: VODID
       }
     } catch (error) {
-      this.logger.error(error)
-
       return {
         token: null,
-        sig: null
+        sig: null,
+        id: null
       }
     }
   }
 
-  async #getMasterPlaylist (isVOD = false) {
+  async #getMasterPlaylist (checkLive = false) {
     try {
-      const authToken = isVOD ? await this.#getVODToken() : await this.#getStreamToken()
+      const authToken = await ((this.isVOD && !checkLive) ? this.#getVODToken() : this.#getStreamToken())
+
+      if (!checkLive) this.logger.debug(`AuthToken: ${JSON.stringify(authToken, null, 2)}`)
+
       const usherParams = [
         'allow_source=true',
         'allow_audio_only=true',
@@ -224,21 +236,18 @@ class Twitch extends EventEmitter {
         'type=any'
       ]
 
-      let vodID = null
-      if (isVOD) {
-        this.logger.debug(`trying VOD`)
+      if (this.isVOD && !checkLive) {
+        const subOnly = JSON.parse(authToken.token).chansub.restricted_bitrates.length > 0
 
-        vodID = await this.#getVODID()
-
-        if (vodID === null) {
-          this.logger.debug(`found VOD ID: false`)
+        if (!authToken.id || subOnly) {
+          this.subOnlyVOD = true
           return ''
+        } else {
+          this.subOnlyVOD = false
         }
-
-        this.logger.debug(`found VOD ID: true (${vodID})`)
       }
 
-      const masterPlaylist = (await (await fetch(`https://usher.ttvnw.net/${isVOD ? `vod/${vodID}` : `api/channel/hls/${this.channel}`}.m3u8?${usherParams.join('&')}`, {
+      const masterPlaylist = (await (await fetch(`https://usher.ttvnw.net/${(this.isVOD && !checkLive) ? `vod/${authToken.id}` : `api/channel/hls/${this.channel}`}.m3u8?${usherParams.join('&')}`, {
         headers: {
           'Client-ID': `${Twitch.#clientID}`
         }
@@ -252,59 +261,54 @@ class Twitch extends EventEmitter {
     }
   }
 
-  async #loadMsterPlaylist (checkLive = false) {
-    if (!checkLive) {
-      if (this.tryVOD) {
-        const masterPlaylistVOD = new m3u8Parser.Parser()
-        masterPlaylistVOD.push(await this.#getMasterPlaylist(true))
-        masterPlaylistVOD.end()
+  async #loadMasterPlaylist (checkLive = false) {
+      const masterPlaylistParser = new m3u8Parser.Parser()
+      masterPlaylistParser.push(await this.#getMasterPlaylist(checkLive))
+      masterPlaylistParser.end()
 
-        const masterPlaylist = masterPlaylistVOD.manifest.playlists ?? []
-        if (masterPlaylist.length > 0) {
-          this.logger.debug(`is VOD: true`)
-          this.isVOD = true
+      const masterPlaylist = masterPlaylistParser.manifest.playlists ?? []
 
-          return masterPlaylist
-        }
-      }
-    }
+      if (this.isVOD && !checkLive) this.logger.debug(`Can download VOD: ${masterPlaylist.length > 0}`)
 
-    const masterPlaylistStream = new m3u8Parser.Parser()
-    masterPlaylistStream.push(await this.#getMasterPlaylist())
-    masterPlaylistStream.end()
-
-    if (!checkLive) {
-      this.logger.debug(`is VOD: false`)
-      this.isVOD = false
-    }
-
-    return masterPlaylistStream.manifest.playlists ?? []
+      return masterPlaylist
   }
 
-  async #getPlaylist (quality = 'best') {
+  async #getPlaylist (quality) {
     const qualityMappings = {
       source: 'chunked',
       best: '',
       audio: 'audio_only'
     }
-    const playlists = await this.#loadMsterPlaylist()
+    const playlists = await this.#loadMasterPlaylist()
     const selectedPlaylist = playlists.find(o => o.attributes.VIDEO.includes(qualityMappings[quality] ?? quality))
 
     if (!selectedPlaylist) {
-      this.logger.error(new Error(`No stream of '${quality}' quality found`))
+      if (this.isVOD) {
+        const errorMessage = this.subOnlyVOD ? 'Subscription required' : `No VOD of '${quality}' quality found`
+        this.logger.error(new Error(errorMessage))
+        this.emit('error', errorMessage)
+      } else {
+        const errorMessage = `No stream of '${quality}' quality found`
+        this.logger.error(new Error(errorMessage))
+        this.emit('error', errorMessage)
+      }
     } else {
-      this.logger.debug(`Selected stream quality: ${Object.keys(qualityMappings).find(key => qualityMappings[key] === selectedPlaylist.attributes.VIDEO) ?? selectedPlaylist.attributes.VIDEO}`)
+      this.logger.debug(`Selected ${this.isVOD ? 'VOD' : 'stream'} quality: ${Object.keys(qualityMappings).find(key => qualityMappings[key] === selectedPlaylist.attributes.VIDEO) ?? selectedPlaylist.attributes.VIDEO}`)
     }
 
     return selectedPlaylist?.uri
   }
 
   async isLive () {
-    return (await this.#loadMsterPlaylist(true)).length > 0
+    return (await this.#loadMasterPlaylist(true)).length > 0
   }
 
-  async getStream () {
-    return await this.#getPlaylist(...arguments)
+  async getVOD (quality = 'best') {
+    return await this.#getPlaylist(quality)
+  }
+
+  async getStream (quality = 'best') {
+    return await this.#getPlaylist(quality)
   }
 
 }
