@@ -20,6 +20,7 @@ class Twitch extends EventEmitter {
     this.isVOD = options.lastVOD
 
     this.subOnlyVOD = false
+    this.VODDate = null
 
     this.#setupPubSub()
   }
@@ -64,6 +65,7 @@ class Twitch extends EventEmitter {
                   node {
                     id
                     status
+                    publishedAt
                   }
                 }
               }
@@ -87,14 +89,17 @@ class Twitch extends EventEmitter {
 
       if (VOD) {
         this.logger.debug(`Found VOD ID: true (${VOD.id})`)
+        this.VODDate = VOD.publishedAt
         return VOD.id
       }
       this.logger.debug(`Found VOD ID: false`)
-      return null
+      this.VODDate = null
 
+      return null
     } catch (error) {
       this.logger.error(error)
       this.logger.debug(`Found VOD ID: false`)
+      this.VODDate = null
 
       return null
     }
@@ -304,11 +309,17 @@ class Twitch extends EventEmitter {
   }
 
   async getVOD (quality = 'best') {
-    return await this.#getPlaylist(quality)
+    return {
+      url: await this.#getPlaylist(quality),
+      date: this.VODDate
+    }
   }
 
   async getStream (quality = 'best') {
-    return await this.#getPlaylist(quality)
+    return {
+      url: await this.#getPlaylist(quality),
+      date: this.VODDate
+    }
   }
 
 }

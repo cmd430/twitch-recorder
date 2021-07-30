@@ -74,11 +74,11 @@ class Downloader extends EventEmitter {
     })
   }
 
-  async #parseTemplate () {
+  async #parseTemplate (dateOverride = null) {
     try {
       let filename = `${this.fileTemplate}.mp4`
 
-      const dateNow = new Date()
+      const dateNow = dateOverride ? new Date(dateOverride) : new Date()
       const timeZoneDate = dateNow.toLocaleString('en-GB', {
         timeZone: `${this.timezone}`,
       }).split(', ')
@@ -130,16 +130,16 @@ class Downloader extends EventEmitter {
     }
   }
 
-  async start (URL) {
+  async start (options = {}) {
     try {
-      if (!URL) return
-      return m3u8Stream(URL, {
+      if (!options.url) return
+      return m3u8Stream(options.url, {
         requestOptions: this.downloadOptions
       })
       .once('response', () => this.emit('start'))
       .on('end', () => this.emit('finish'))
       .on('error', error => this.emit('error', error))
-      .pipe(createWriteStream(await this.#parseTemplate()))
+      .pipe(createWriteStream(await this.#parseTemplate(options.date)))
     } catch (error) {
       this.logger.error(error)
     }
