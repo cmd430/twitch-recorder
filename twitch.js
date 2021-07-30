@@ -20,6 +20,7 @@ class Twitch extends EventEmitter {
     this.isVOD = options.lastVOD
 
     this.subOnlyVOD = false
+    this.noVODs = false
     this.VODDate = null
 
     this.#setupPubSub()
@@ -242,12 +243,15 @@ class Twitch extends EventEmitter {
       ]
 
       if (this.isVOD && !checkLive) {
-        const subOnly = JSON.parse(authToken.token).chansub.restricted_bitrates.length > 0
-
-        if (!authToken.id || subOnly) {
+        const subOnly = JSON.parse(authToken.token)?.chansub.restricted_bitrates.length > 0
+         if (!authToken.id) {
+          this.noVODs = true
+          return ''
+        } else if (subOnly) {
           this.subOnlyVOD = true
           return ''
         } else {
+          this.noVODs = false
           this.subOnlyVOD = false
         }
       }
@@ -289,7 +293,7 @@ class Twitch extends EventEmitter {
 
     if (!selectedPlaylist) {
       if (this.isVOD) {
-        const errorMessage = this.subOnlyVOD ? 'Subscription required' : `No VOD of '${quality}' quality found`
+        const errorMessage = (this.noVODs ? 'No VOD found' : (this.subOnlyVOD ? 'Subscription required' : `No VOD of '${quality}' quality found`))
         this.logger.error(new Error(errorMessage))
         this.emit('error', errorMessage)
       } else {
