@@ -1,6 +1,8 @@
 const EventEmitter = require('events')
-const { mkdirSync, access, rename, F_OK } = require('fs')
+const { createReadStream, createWriteStream, mkdirSync, access, rename, F_OK } = require('fs')
 const { basename, dirname, resolve, join } = require('path')
+const { URL } = require('url')
+const { get } = require('https')
 const HLS = require('hls-reader')
 
 class Downloader extends EventEmitter {
@@ -20,6 +22,8 @@ class Downloader extends EventEmitter {
     this.logger = options.logger ? options.logger : console
 
     this.hls = null
+    this.downloadQueue = null
+    this.concatQueue = null
   }
 
   async #reserveFile (options) {
@@ -134,14 +138,117 @@ class Downloader extends EventEmitter {
     }
   }
 
-  async download () {}
+  async #download (uri, dest) {
+    const file = createWriteStream(resolve(dest))
+    const req= get(new URL(uri))
+
+    return new Promise((resolve, reject) => {
+      const onFinish = () => {
+        file.close()
+        resolve(file.path)
+      }
+
+      req.on('error', reject)
+      req.on('timeout', () => reject(new Error('Request Timed out.')))
+      req.on('response', res => {
+        const stream = res.pipe(file)
+
+        stream.on('error', reject)
+        stream.on('finish', onFinish)
+        stream.on('close', onFinish)
+      })
+    })
+  }
+
+  async #concat (src, dest) {
+    const inFile = createReadStream(resolve(src))
+    const outFile = createWriteStream(resolve(dest), {
+      flags:'a'
+    })
+
+    return new Promise((resolve, reject) => {
+      const onFinish = () => {
+        outFile.close()
+        resolve({
+          all: outFile.path,
+          segment: inFile.path
+        })
+      }
+
+      inFile.on('open', () => {
+        inFile.pipe(outFile)
+      })
+      inFile.on('close', onFinish)
+      inFile.on('error', reject)
+    })
+  }
 
   async start (options = {}) {
+    const PQueue = (await (await import('p-queue')).default)
+
+
+    // TODO: make this method actually work with passed in outputTemplate
+
+
+    mkdirSync(`${resolve('recordings/segments')}`, { recursive: true })
+
     try {
       this.hls = new HLS({
         playlistURL: options.url,
         quality: options.quality
       })
+
+      this.downloadQueue = new PQueue({
+        concurrency: 1
+      })
+      this.concatQueue = new PQueue({
+        concurrency: 1
+      })
+
+
+      this.downloadQueue.on('completed', segment => {
+        // download of segment finished
+        this.logger.debug(`Segment downloaded: ${segment}`)
+        this.concatQueue.add(() => this.#concat(segment, 'recordings/segments/all.ts'))
+      })
+      this.downloadQueue.on('error', error => {
+        // download of segment error
+        this.logger.error(error)
+      })
+      this.downloadQueue.on('idle', () => {
+        // nothing to download
+      })
+      this.downloadQueue.on('add', () => {
+        // new segment added to download queue
+      })
+      this.downloadQueue.on('next', () => {
+        // starting download of next segment
+      })
+      this.downloadQueue.on('active', () => {
+        // active download
+      })
+
+      this.concatQueue.on('completed', (merged) => {
+        // merge of segment finished
+        this.logger.debug(`Segment concatenated: ${merged.segment} -> ${merged.all}`)
+      })
+      this.concatQueue.on('error', error => {
+        // merge of segment error
+        this.logger.error(error)
+      })
+      this.concatQueue.on('idle', () => {
+        // nothing to merge
+      })
+      this.concatQueue.on('add', () => {
+        // new segment added to merge queue
+      })
+      this.concatQueue.on('next', () => {
+        // starting merge of next segment
+      })
+      this.concatQueue.on('active', () => {
+        // active merge
+      })
+
 
       // Emit once we start to download segments
       // this.emit('start')
@@ -158,6 +265,7 @@ class Downloader extends EventEmitter {
       this.hls.on('segment', segment => {
         // new segment
         this.logger.debug(`New segment: ${JSON.stringify(segment, null, 2)}`)
+        this.downloadQueue.add(() => this.#download(segment.uri, `recordings/segments/segment_${segment.segment}.ts`))
       })
       this.hls.once('finish', info => {
         // no more new segments
