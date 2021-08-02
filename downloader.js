@@ -134,6 +134,8 @@ class Downloader extends EventEmitter {
     }
   }
 
+  async download () {}
+
   async start (options = {}) {
     try {
       this.hls = new HLS({
