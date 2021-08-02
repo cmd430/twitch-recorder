@@ -5,8 +5,9 @@ const stripAnsi = require('strip-ansi')
 class Logger {
 
   static #logOut
+  static #logDbg
   static #logErr
-  static #logCombined
+  static #logAll
 
   constructor (options = {}) {
     process.stdout.write('\u001b[2J\u001b[0;0H') // clear console
@@ -20,10 +21,13 @@ class Logger {
     Logger.#logOut = createWriteStream(`${this.directory}/out.log`, {
       flags: 'w'
     })
+    Logger.#logDbg = createWriteStream(`${this.directory}/dbg.log`, {
+      flags: 'w'
+    })
     Logger.#logErr = createWriteStream(`${this.directory}/err.log`, {
       flags: 'w'
     })
-    Logger.#logCombined = createWriteStream(`${this.directory}/combined.log`, {
+    Logger.#logAll = createWriteStream(`${this.directory}/all.log`, {
       flags: 'w'
     })
 
@@ -35,7 +39,7 @@ class Logger {
     const formatted = `${chalk.grey(`[${new Date().toLocaleString(this.timezoneFormat)}]`)} ${message}`
 
     Logger.#logOut.write(`${stripAnsi(formatted)}\n`)
-    Logger.#logCombined.write(`${stripAnsi(formatted)}\n`)
+    Logger.#logAll.write(`${stripAnsi(formatted)}\n`)
 
     console.log(formatted)
   }
@@ -44,8 +48,8 @@ class Logger {
     const message = [...arguments].join(' ')
     const formatted = `${chalk.grey(`[${new Date().toLocaleString(this.timezoneFormat)}]`)} ${message}`
 
-    Logger.#logOut.write(`${stripAnsi(formatted)}\n`)
-    Logger.#logCombined.write(`${stripAnsi(formatted)}\n`)
+    Logger.#logDbg.write(`${stripAnsi(formatted)}\n`)
+    Logger.#logAll.write(`${stripAnsi(formatted)}\n`)
 
     if (!this.debugMode) return
     console.debug(formatted)
@@ -56,7 +60,7 @@ class Logger {
     const formatted = `${chalk.grey(`[${new Date().toLocaleString(this.timezoneFormat)}]`)} ${message}`
 
     Logger.#logErr.write(`${stripAnsi(formatted)}\n`)
-    Logger.#logCombined.write(`${stripAnsi(formatted)}\n`)
+    Logger.#logAll.write(`${stripAnsi(formatted)}\n`)
 
     if (!this.debugMode) return
     console.error(formatted)

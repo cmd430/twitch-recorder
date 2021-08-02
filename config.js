@@ -8,13 +8,9 @@ const configDefaults = {
   recorder: {
     auth: null,
     quality: 'best',
-    lastVOD: false,
     lowLatency: false,
     template: join('.', 'recordings', ':shortYear.:month.:day :period -- :channel'),
-    download: {
-      maxRetries: 5,
-      maxReconnects: 2
-    }
+    download: {}
   },
   time: {
     timezone: 'Europe/London',
@@ -36,7 +32,6 @@ const configArgs = {
   recorder: {
     auth: minimist.auth,
     quality: minimist.quality,
-    lastVOD: minimist.lastVOD,
     lowLatency: minimist.lowLatency,
     template: minimist.template
   },
@@ -72,8 +67,6 @@ if (minimist.help) {
           --quality=${chalk.grey(`<format>`)}                 Set the stream recording quality
                                             Accepts qualities by height (e.g ${chalk.grey(`1080/720`)}), ${chalk.grey(`source`)}, and ${chalk.grey(`best`)}
                                             Default: ${chalk.grey(`best`)}
-
-          --lastVOD                         Attempt to download last VOD
 
           --lowLatency                      Set the Twitch stream to low latency mode
 
