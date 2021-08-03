@@ -28,7 +28,7 @@ const downloader = new Downloader({
   channel: config.channel,
   timezone: config.time.timezone,
   timezoneFormat: config.time.timezoneFormat,
-  downloadOptions: {},
+  keepSegments: config.recorder.keepSegments,
   logger: logger
 })
 

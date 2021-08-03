@@ -1,5 +1,5 @@
 const EventEmitter = require('events')
-const { createReadStream, createWriteStream, mkdirSync, access, rename, F_OK } = require('fs')
+const { createReadStream, createWriteStream, mkdirSync, unlinkSync, access, rename, F_OK } = require('fs')
 const { basename, dirname, resolve, join } = require('path')
 const { URL } = require('url')
 const { get } = require('https')
@@ -18,7 +18,7 @@ class Downloader extends EventEmitter {
     this.channel = options.channel ?? ''
     this.timezone = options.timezone
     this.timezoneFormat = options.timezoneFormat
-    this.downloadOptions = options.downloadOptions
+    this.keepSegments = options.keepSegments ?? false
     this.logger = options.logger ? options.logger : console
 
     this.hls = null
@@ -26,59 +26,16 @@ class Downloader extends EventEmitter {
     this.concatQueue = null
   }
 
-  async #reserveFile (options) {
-    const basefile = options.basefile
-    const checkfile = options.checkfile !== undefined? options.checkfile : options.basefile
-
-    let parts = options.parts !== undefined ? options.parts : 0
-
-    return new Promise((p_resolve, p_reject) => {
-      if (parts === 0) {
-        access(resolve(`${join(dirname(basefile), basename(basefile, `.${Downloader.#fileExtension}`))} (part 1).${Downloader.#fileExtension}`), F_OK, err => {
-          if (!err) { // file exist
-            return p_resolve({
-              basefile: basefile,
-              checkfile: `${join(dirname(basefile), basename(basefile, `.${Downloader.#fileExtension}`))} (part ${++parts}).${Downloader.#fileExtension}`,
-              parts: parts
-            })
-          } else { // file not exist
-            access(resolve(checkfile), F_OK, err => {
-              if (!err) { // file exist, rename
-                let newfile = `${join(dirname(basefile), basename(basefile, `.${Downloader.#fileExtension}`))} (part ${++parts}).${Downloader.#fileExtension}`
-                rename(resolve(basefile), resolve(newfile), err => {
-                  if (!err) this.logger.debug(`renamed ${basefile} -> ${newfile}`)
-                })
-                return p_resolve({
-                  basefile: basefile,
-                  checkfile: `${join(dirname(basefile), basename(basefile, `.${Downloader.#fileExtension}`))} (part ${++parts}).${Downloader.#fileExtension}`,
-                  parts: parts
-                })
-              } else { // file not exist, this must be first part
-                return p_resolve(checkfile)
-              }
-            })
-          }
-        })
-      } else {
-        access(resolve(checkfile), F_OK, err => {
-          if (!err) { // file exist
-            return p_resolve({
-              basefile: basefile,
-              checkfile: `${join(dirname(basefile), basename(basefile, `.${Downloader.#fileExtension}`))} (part ${++parts}).${Downloader.#fileExtension}`,
-              parts: parts
-            })
-          } else { // file not exist
-            return p_resolve(checkfile)
-          }
-        })
-      }
-    })
-    .then(data => {
-      if (data instanceof Object) {
-        return this.#reserveFile(data)
-      } else {
-        return data
-      }
+  async #reserveFile (filename, parts = 1) {
+    return new Promise((pResolve, pReject) => {
+      access(resolve(filename), F_OK, async err => {
+        if (!err) { // file exist
+          return pResolve(await this.#reserveFile(resolve(`${join(dirname(filename), basename(filename, `.${Downloader.#fileExtension}`))} (part ${++parts}).${Downloader.#fileExtension}`), parts))
+        }
+        // file not exist
+        this.logger.debug(`saving stream to file: ${filename}`)
+        return pResolve(filename)
+      })
     })
   }
 
@@ -121,18 +78,11 @@ class Downloader extends EventEmitter {
         filename = filename.replace(/[!?%*:;|"'<>`\0]/g, '-') // unix invaild filename chars
       }
 
-      mkdirSync(`${dirname(resolve(filename))}`, { recursive: true })
-
-      filename = await this.#reserveFile({ basefile: filename })
-
-      this.logger.debug(`saving stream to file: ${filename}`)
-
       return filename
     } catch (error) {
       const filename = `stream.${Downloader.#fileExtension}`
 
       this.logger.error(error)
-      this.logger.debug(`saving stream to file: ${filename}`)
 
       return filename
     }
@@ -186,13 +136,26 @@ class Downloader extends EventEmitter {
   async start (options = {}) {
     const PQueue = (await (await import('p-queue')).default)
 
-
-    // TODO: make this method actually work with passed in outputTemplate
-
-
-    mkdirSync(`${resolve('recordings/segments')}`, { recursive: true })
-
     try {
+      const outFile = await this.#reserveFile(await this.#parseTemplate())
+      const segmentDir = join(dirname(resolve(outFile)), 'segments')
+      const segmentTemplate = join(segmentDir, `${basename(outFile, Downloader.#fileExtension)}`)
+
+      console.log(outFile)
+
+      mkdirSync(`${resolve(segmentDir)}`, { recursive: true })
+
+      const status = {
+        started: false,
+        parseComplete: false,
+        downloadComplete: false,
+        mergeComplete: false
+      }
+
+      const finished = () => {
+        if (status.parseComplete && status.downloadComplete && status.mergeComplete) this.emit('finish')
+      }
+
       this.hls = new HLS({
         playlistURL: options.url,
         quality: options.quality
@@ -205,11 +168,36 @@ class Downloader extends EventEmitter {
         concurrency: 1
       })
 
+      this.hls.once('start', () => {
+        // started to parse segments
+        this.logger.debug('Started parsing m3u8')
+        status.parseComplete = false
+      })
+      this.hls.on('segment', segment => {
+        // new segment
+        this.logger.debug(`New segment: ${JSON.stringify(segment, null, 2)}`)
+        if (!segment.isAd) this.downloadQueue.add(() => this.#download(segment.uri, `${segmentTemplate}${segment.segment}.ts`))
+      })
+      this.hls.once('finish', info => {
+        // no more new segments
+        this.logger.debug(`Finished parsing m3u8: ${JSON.stringify(info, null, 2)}`)
+        status.parseComplete = true
+        finished()
+      })
 
+      this.downloadQueue.on('add', () => {
+        // new segment added to download queue
+        status.downloadComplete = false
+        if (!status.started) {
+          status.started = true
+          this.emit('start')
+        }
+      })
       this.downloadQueue.on('completed', segment => {
         // download of segment finished
         this.logger.debug(`Segment downloaded: ${segment}`)
-        this.concatQueue.add(() => this.#concat(segment, 'recordings/segments/all.ts'))
+        //this.concatQueue.add(() => this.#concat(segment, `${segmentTemplate}all.ts`))
+        this.concatQueue.add(() => this.#concat(segment, `${outFile}`))
       })
       this.downloadQueue.on('error', error => {
         // download of segment error
@@ -217,20 +205,18 @@ class Downloader extends EventEmitter {
       })
       this.downloadQueue.on('idle', () => {
         // nothing to download
-      })
-      this.downloadQueue.on('add', () => {
-        // new segment added to download queue
-      })
-      this.downloadQueue.on('next', () => {
-        // starting download of next segment
-      })
-      this.downloadQueue.on('active', () => {
-        // active download
+        status.downloadComplete = true
+        finished()
       })
 
+      this.concatQueue.on('add', () => {
+        // new segment added to merge queue
+        status.mergeComplete = false
+      })
       this.concatQueue.on('completed', (merged) => {
         // merge of segment finished
         this.logger.debug(`Segment concatenated: ${merged.segment} -> ${merged.all}`)
+        if (!this.keepSegments) unlinkSync(merged.segment)
       })
       this.concatQueue.on('error', error => {
         // merge of segment error
@@ -238,38 +224,8 @@ class Downloader extends EventEmitter {
       })
       this.concatQueue.on('idle', () => {
         // nothing to merge
-      })
-      this.concatQueue.on('add', () => {
-        // new segment added to merge queue
-      })
-      this.concatQueue.on('next', () => {
-        // starting merge of next segment
-      })
-      this.concatQueue.on('active', () => {
-        // active merge
-      })
-
-
-      // Emit once we start to download segments
-      // this.emit('start')
-      // Emit once we have finished downloading all segments
-      // this.emit('finish')
-
-      // use to get name for final concat. .ts file (options.data to override date used in date tokens)
-      // await this.#parseTemplate(options.date)
-
-      this.hls.once('start', () => {
-        // started to parse segments
-        this.logger.debug('Started parsing m3u8')
-      })
-      this.hls.on('segment', segment => {
-        // new segment
-        this.logger.debug(`New segment: ${JSON.stringify(segment, null, 2)}`)
-        this.downloadQueue.add(() => this.#download(segment.uri, `recordings/segments/segment_${segment.segment}.ts`))
-      })
-      this.hls.once('finish', info => {
-        // no more new segments
-        this.logger.debug(`Finished parsing m3u8: ${JSON.stringify(info, null, 2)}`)
+        status.mergeComplete = true
+        finished()
       })
 
       await this.hls.start() // start reading m3u8
