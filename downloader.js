@@ -173,8 +173,14 @@ class Downloader extends EventEmitter {
       })
       this.hls.on('segment', segment => {
         // new segment
-        this.logger.debug(`New segment: ${JSON.stringify(segment, null, 2)}`)
-        if (!segment.isAd) this.downloadQueue.add(() => this.#download(segment.uri, `${segmentTemplate}${segment.segment}.ts`))
+        if (!segment.ad) {
+          if (segment.prefetch) {
+            this.logger.debug(`New prefech segment: ${JSON.stringify(segment, null, 2)}`)
+          } else {
+            this.logger.debug(`New segment: ${JSON.stringify(segment, null, 2)}`)
+          }
+          this.downloadQueue.add(() => this.#download(segment.uri, `${segmentTemplate}${segment.segment}.ts`))
+        }
       })
       this.hls.once('finish', info => {
         // no more new segments
