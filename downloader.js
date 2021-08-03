@@ -141,8 +141,6 @@ class Downloader extends EventEmitter {
       const segmentDir = join(dirname(resolve(outFile)), 'segments')
       const segmentTemplate = join(segmentDir, `${basename(outFile, Downloader.#fileExtension)}`)
 
-      console.log(outFile)
-
       mkdirSync(`${resolve(segmentDir)}`, { recursive: true })
 
       const status = {
