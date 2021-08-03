@@ -19,6 +19,7 @@ class Downloader extends EventEmitter {
     this.timezone = options.timezone
     this.timezoneFormat = options.timezoneFormat
     this.keepSegments = options.keepSegments ?? false
+    this.keepAds = options.keepAds ?? false
     this.logger = options.logger ? options.logger : console
 
     this.hls = null
@@ -173,14 +174,14 @@ class Downloader extends EventEmitter {
       })
       this.hls.on('segment', segment => {
         // new segment
-        if (!segment.ad) {
-          if (segment.prefetch) {
-            this.logger.debug(`New prefech segment: ${JSON.stringify(segment, null, 2)}`)
-          } else {
-            this.logger.debug(`New segment: ${JSON.stringify(segment, null, 2)}`)
-          }
-          this.downloadQueue.add(() => this.#download(segment.uri, `${segmentTemplate}${segment.segment}.ts`))
+        if (segment.ad) {
+          this.logger.debug(`New ad segment: ${JSON.stringify(segment, null, 2)}`)
+        } else if (segment.prefetch) {
+          this.logger.debug(`New prefech segment: ${JSON.stringify(segment, null, 2)}`)
+        } else {
+          this.logger.debug(`New segment: ${JSON.stringify(segment, null, 2)}`)
         }
+        if (!segment.ad || this.keepAds) this.downloadQueue.add(() => this.#download(segment.uri, `${segmentTemplate}${segment.segment}.ts`))
       })
       this.hls.once('finish', info => {
         // no more new segments

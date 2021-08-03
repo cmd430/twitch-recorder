@@ -10,7 +10,10 @@ const configDefaults = {
     quality: 'best',
     lowLatency: false,
     template: join('.', 'recordings', ':shortYear.:month.:day :period -- :channel'),
-    keepSegments: false
+    downloadOptions: {
+      keepSegments: false,
+      keepAds: false
+    }
   },
   time: {
     timezone: 'Europe/London',
@@ -34,7 +37,10 @@ const configArgs = {
     quality: minimist.quality,
     lowLatency: minimist.lowLatency,
     template: minimist.template,
-    keepSegments: minimist.keepSegments
+    downloadOptions: {
+      keepSegments: minimist.keepSegments,
+      keepAds: minimist.keepAds
+    }
   },
   time: {
     timezone: minimist.tz,
@@ -70,8 +76,8 @@ if (minimist.help) {
                                             Default: ${chalk.grey(`best`)}
 
           --lowLatency                      Set the Twitch stream to low latency mode
-
           --keepSegments                    Don't delete downloaded segments after merging
+          --keepAds                         Don't skip ad segments
 
           --template=${chalk.grey(`"<template>"`)}            Set template and path for recorded streams, if path does not exit it will be created
                                             Accepts tokens; :channel, :date, :time, :day, :month, :year, :shortYear, :period
