@@ -1,6 +1,6 @@
 {
   "name": "twitch-recorder",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Record Twitch Live stream",
   "main": "index.js",
   "scripts": {
