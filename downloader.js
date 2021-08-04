@@ -7,7 +7,7 @@ const HLS = require('hls-reader')
 
 class Downloader extends EventEmitter {
 
-  static #fileExtension = 'ts'
+  static #fileExtension = '.ts'
 
   constructor (options = {}) {
     super()
@@ -15,6 +15,7 @@ class Downloader extends EventEmitter {
     if (options.fileTemplate === undefined) throw new Error('options.fileTemplate must be set')
 
     this.fileTemplate = options.fileTemplate
+    this.outputDir = options.outputDir
     this.channel = options.channel ?? ''
     this.timezone = options.timezone
     this.timezoneFormat = options.timezoneFormat
@@ -27,24 +28,24 @@ class Downloader extends EventEmitter {
     this.concatQueue = null
   }
 
-  async #reserveFile (filename, parts = 1) {
+  async #reserveFile (filepath, parts = 1) {
     return new Promise((pResolve, pReject) => {
-      access(resolve(filename), F_OK, async err => {
+      access(resolve(filepath), F_OK, async err => {
         if (!err) { // file exist
-          return pResolve(await this.#reserveFile(resolve(`${join(dirname(filename), basename(filename, `.${Downloader.#fileExtension}`))} (part ${++parts}).${Downloader.#fileExtension}`), parts))
+          return pResolve(await this.#reserveFile(resolve(`${join(dirname(filepath), basename(filepath, `${Downloader.#fileExtension}`))} (part ${++parts})${Downloader.#fileExtension}`), parts))
         }
         // file not exist
-        this.logger.debug(`saving stream to file: ${filename}`)
-        return pResolve(filename)
+        this.logger.debug(`saving stream to file: ${filepath}`)
+        return pResolve(filepath)
       })
     })
   }
 
-  async #parseTemplate (dateOverride = null) {
+  async #parseTokens (inputString) {
     try {
-      let filename = `${this.fileTemplate}.${Downloader.#fileExtension}`
+      let parsed = inputString
 
-      const dateNow = dateOverride ? new Date(dateOverride) : new Date()
+      const dateNow = new Date()
       const timeZoneDate = dateNow.toLocaleString('en-GB', {
         timeZone: `${this.timezone}`,
       }).split(', ')
@@ -60,33 +61,34 @@ class Downloader extends EventEmitter {
       const shortYear = year.toString().substring(2)
       const period = timeZoneDate[1].split(':')[0] < 12 ? 'AM' : 'PM'
 
-      filename = filename.replace(/:channel/gi, `${name}`)
-      filename = filename.replace(/:date/gi, `${date}`)
-      filename = filename.replace(/:time/gi, `${time}`)
-      filename = filename.replace(/:day/gi, `${day}`)
-      filename = filename.replace(/:month/gi, `${month}`)
-      filename = filename.replace(/:year/gi, `${year}`)
-      filename = filename.replace(/:shortYear/gi, `${shortYear}`)
-      filename = filename.replace(/:period/gi, `${period}`)
-      filename = filename.replace(/[?%*:|"<>]/g, '-')
+      parsed = parsed.replace(/:channel/gi, `${name}`)
+      parsed = parsed.replace(/:date/gi, `${date}`)
+      parsed = parsed.replace(/:time/gi, `${time}`)
+      parsed = parsed.replace(/:day/gi, `${day}`)
+      parsed = parsed.replace(/:month/gi, `${month}`)
+      parsed = parsed.replace(/:year/gi, `${year}`)
+      parsed = parsed.replace(/:shortYear/gi, `${shortYear}`)
+      parsed = parsed.replace(/:period/gi, `${period}`)
+      parsed = parsed.replace(/[?%*:|"<>]/g, '-')
 
       if (process.platform === 'win32') {
-        filename = filename.replace(/\//g, '\\') // convert unix path seperators to windows style
-        filename = filename.replace(/[?%*:|"<>]/g, '-')
-        filename = filename.replace(/^([A-Z-a-z])(-)\\/, '$1:\\') // windows drive letter fix
+        parsed = parsed.replace(/\//g, '\\') // convert unix path seperators to windows style
+        parsed = parsed.replace(/[?%*:|"<>]/g, '-')
+        parsed = parsed.replace(/^([A-Z-a-z])(-)\\/, '$1:\\') // windows drive letter fix
       } else {
-        filename = filename.replace(/\\/g, '/') // convert windows path seperators to unix style
-        filename = filename.replace(/[!?%*:;|"'<>`\0]/g, '-') // unix invaild filename chars
+        parsed = parsed.replace(/\\/g, '/') // convert windows path seperators to unix style
+        parsed = parsed.replace(/[!?%*:;|"'<>`\0]/g, '-') // unix invaild filename chars
       }
 
-      return filename
+      return parsed
     } catch (error) {
-      const filename = `stream.${Downloader.#fileExtension}`
+      const parsed = `.`
 
       this.logger.error(error)
 
-      return filename
+      return parsed
     }
+
   }
 
   async #download (uri, dest) {
@@ -138,11 +140,12 @@ class Downloader extends EventEmitter {
     const PQueue = (await (await import('p-queue')).default)
 
     try {
-      const outFile = await this.#reserveFile(await this.#parseTemplate())
-      const segmentDir = join(dirname(resolve(outFile)), 'segments')
-      const segmentTemplate = join(segmentDir, `${basename(outFile, Downloader.#fileExtension)}`)
+      const outDir = resolve(await this.#parseTokens(this.outputDir))
+      const outFile = await this.#reserveFile(join(outDir, `${await this.#parseTokens(this.fileTemplate)}${Downloader.#fileExtension}`))
+      const segmentDir = join(outDir, 'segments')
+      const segmentTemplate = join(segmentDir, `${basename(outFile, Downloader.#fileExtension)}.`)
 
-      mkdirSync(`${resolve(segmentDir)}`, { recursive: true })
+      mkdirSync(segmentDir, { recursive: true })
 
       const status = {
         started: false,
@@ -201,7 +204,6 @@ class Downloader extends EventEmitter {
       this.downloadQueue.on('completed', segment => {
         // download of segment finished
         this.logger.debug(`Segment downloaded: ${segment}`)
-        //this.concatQueue.add(() => this.#concat(segment, `${segmentTemplate}all.ts`))
         this.concatQueue.add(() => this.#concat(segment, `${outFile}`))
       })
       this.downloadQueue.on('error', error => {
@@ -221,7 +223,14 @@ class Downloader extends EventEmitter {
       this.concatQueue.on('completed', (merged) => {
         // merge of segment finished
         this.logger.debug(`Segment concatenated: ${merged.segment} -> ${merged.all}`)
-        if (!this.keepSegments) unlinkSync(merged.segment)
+        if (!this.keepSegments) {
+          try {
+            unlinkSync(merged.segment)
+            this.logger.debug(`Segment deleted: ${merged.segment}`)
+          } catch (err) {
+            this.logger.debug(`Unable to delete segment: ${merged.segment}\n${err.message}`)
+          }
+        }
       })
       this.concatQueue.on('error', error => {
         // merge of segment error

@@ -9,7 +9,8 @@ const configDefaults = {
     auth: null,
     quality: 'best',
     lowLatency: false,
-    template: join('.', 'recordings', ':shortYear.:month.:day :period -- :channel'),
+    template: ':shortYear.:month.:day :period -- :channel',
+    outputDir: join('.', 'recordings'),
     downloadOptions: {
       keepSegments: false,
       keepAds: false
@@ -17,7 +18,7 @@ const configDefaults = {
   },
   time: {
     timezone: 'Europe/London',
-    timezoneFormat: 'en-GB'
+    format: 'en-GB'
   },
   developer: {
     log: 'logs',
@@ -37,6 +38,7 @@ const configArgs = {
     quality: minimist.quality,
     lowLatency: minimist.lowLatency,
     template: minimist.template,
+    outputDir: minimist.outputDir,
     downloadOptions: {
       keepSegments: minimist.keepSegments,
       keepAds: minimist.keepAds
@@ -44,7 +46,7 @@ const configArgs = {
   },
   time: {
     timezone: minimist.tz,
-    timezoneFormat: minimist.tzFormat
+    format: minimist.tzFormat
   },
   developer: {
     log: minimist.log,

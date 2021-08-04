@@ -13,7 +13,7 @@ const state = {
 const logger = new Logger({
   directory: config.developer.log,
   debug: config.developer.debug,
-  timezoneFormat: config.timezoneFormat
+  timezoneFormat: config.time.format
 })
 
 const twitch = new Twitch({
@@ -25,9 +25,10 @@ const twitch = new Twitch({
 
 const downloader = new Downloader({
   fileTemplate: config.recorder.template,
+  outputDir: config.recorder.outputDir,
   channel: config.channel,
   timezone: config.time.timezone,
-  timezoneFormat: config.time.timezoneFormat,
+  timezoneFormat: config.time.format,
   keepSegments: config.recorder.downloadOptions.keepSegments,
   keepAds: config.recorder.downloadOptions.keepAds,
   logger: logger
