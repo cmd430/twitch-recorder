@@ -41,7 +41,7 @@ class Downloader extends EventEmitter {
     })
   }
 
-  async #parseTokens (inputString) {
+  #parseTokens (inputString) {
     try {
       let parsed = inputString
 
@@ -140,8 +140,8 @@ class Downloader extends EventEmitter {
     const PQueue = (await (await import('p-queue')).default)
 
     try {
-      const outDir = resolve(await this.#parseTokens(this.outputDir))
-      const outFile = await this.#reserveFile(join(outDir, `${await this.#parseTokens(this.fileTemplate)}${Downloader.#fileExtension}`))
+      const outDir = resolve(this.#parseTokens(this.outputDir))
+      const outFile = await this.#reserveFile(join(outDir, `${this.#parseTokens(this.fileTemplate)}${Downloader.#fileExtension}`))
       const segmentDir = join(outDir, 'segments')
       const segmentTemplate = join(segmentDir, `${basename(outFile, Downloader.#fileExtension)}.`)
 
