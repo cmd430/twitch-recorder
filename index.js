@@ -11,6 +11,7 @@ const state = {
 }
 
 const logger = new Logger({
+  channel: config.channel,
   directory: config.developer.logs,
   debug: config.developer.debug,
   timezoneFormat: config.time.format

@@ -12,7 +12,8 @@ class Logger {
   constructor (options = {}) {
     process.stdout.write('\u001b[2J\u001b[0;0H') // clear console
 
-    this.directory = options.directory ?? 'logs'
+    this.channel = options.channel ?? ''
+    this.directory = this.#parseTokens(options.directory)
     this.debugMode = options.debug ?? false
     this.timezoneFormat = options.timezoneFormat ?? 'en-GB'
 
@@ -32,6 +33,29 @@ class Logger {
     })
 
     if (this.debugMode) this.debug(`${chalk.magentaBright('Debug Mode Enabled')}`)
+  }
+
+  #parseTokens (inputString) {
+    try {
+      let parsed = inputString
+
+      const name = this.channel.replace(/[/\\?%*:|"<>]/g, '_')
+
+      parsed = parsed.replace(/:channel/gi, `${name}`)
+
+      if (process.platform === 'win32') {
+        parsed = parsed.replace(/\//g, '\\') // convert unix path seperators to windows style
+        parsed = parsed.replace(/[?%*:|"<>]/g, '-')
+        parsed = parsed.replace(/^([A-Z-a-z])(-)\\/, '$1:\\') // windows drive letter fix
+      } else {
+        parsed = parsed.replace(/\\/g, '/') // convert windows path seperators to unix style
+        parsed = parsed.replace(/[!?%*:;|"'<>`\0]/g, '-') // unix invaild filename chars
+      }
+
+      return parsed
+    } catch (err) {
+      return 'logs'
+    }
   }
 
   #writeLog () {
