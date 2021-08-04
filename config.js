@@ -67,41 +67,43 @@ if (minimist.help) {
 
         Options:
           --channel=${chalk.grey(`<streamer username>`)}     Set the Twitch streamer to monitor
-                                            Default: ${chalk.grey(`TwitchUser`)}
+                                            Default: ${chalk.bold.whiteBright(`TwitchUser`)}
 
           --auth=${chalk.grey(`<twitch auth token>`)}        Set auth token to use when getting the stream (This must be a user auth token)
                                             This may be used to avoid Twitch Ads for subscribed channels
-                                            Default: ${chalk.grey(`null`)}
+                                            Default: ${chalk.bold.whiteBright(`null`)}
 
           --quality=${chalk.grey(`<format>`)}                Set the stream recording quality
-                                            Accepts qualities by height (e.g ${chalk.grey(`720`)}), ${chalk.grey(`source`)}, and ${chalk.grey(`best`)}
-                                            Default: ${chalk.grey(`best`)}
+                                            Accepts qualities by height (e.g ${chalk.cyanBright(`720`)}), ${chalk.cyanBright(`source`)}, ${chalk.cyanBright(`audio`)}, and ${chalk.cyanBright(`best`)}
+                                            Default: ${chalk.bold.whiteBright(`best`)}
+
+          --outputDir=${chalk.grey(`"<directory path>"`)}    Set output directory for recorded streams (path will be created if not exist)
+                                            Accepts tokens; ${chalk.cyanBright(`:channel`)}, ${chalk.cyanBright(`:date`)}, ${chalk.cyanBright(`:time`)}, ${chalk.cyanBright(`:day`)}, ${chalk.cyanBright(`:month`)}, ${chalk.cyanBright(`:year`)}, ${chalk.cyanBright(`:shortYear`)}, ${chalk.cyanBright(`:period`)}
+                                            Default: ${chalk.bold.whiteBright(`./recordings`)}
+
+          --template=${chalk.grey(`"<template>"`)}           Set filename template recorded streams
+                                            Accepts tokens; ${chalk.cyanBright(`:channel`)}, ${chalk.cyanBright(`:date`)}, ${chalk.cyanBright(`:time`)}, ${chalk.cyanBright(`:day`)}, ${chalk.cyanBright(`:month`)}, ${chalk.cyanBright(`:year`)}, ${chalk.cyanBright(`:shortYear`)}, ${chalk.cyanBright(`:period`)}
+                                            Default: ${chalk.bold.whiteBright(`:shortYear.:month.:day :period -- :channel`)}
+
+          --tz=${chalk.grey(`<timezone>`)}                   Set the timezone used when dating saved streams
+                                            Default: ${chalk.bold.whiteBright(`Europe/London`)}
+
+          --tzFormat=${chalk.grey(`<timezone format>`)}      Set the timezone for local logs and file names, accepts en-GB or en-US
+                                            Default: ${chalk.bold.whiteBright(`en-GB`)}
+
+          --config=${chalk.grey(`"<path>"`)}                 Set path to config.json to use
+                                            Default: ${chalk.bold.whiteBright(`./config.json`)}
 
           --lowLatency                      Set the Twitch stream to low latency mode
           --keepSegments                    Don't delete downloaded segments after merging
           --keepAds                         Don't skip ad segments
-
-          --outputDir=${chalk.grey(`"<directory path>"`)}    Set output directory for recorded streams (path will be created if not exist)
-                                            Accepts tokens; :channel, :date, :time, :day, :month, :year, :shortYear, :period
-                                            Default: ${chalk.grey(`./recordings`)}
-
-          --template=${chalk.grey(`"<template>"`)}           Set filename template recorded streams
-                                            Accepts tokens; :channel, :date, :time, :day, :month, :year, :shortYear, :period
-                                            Default: ${chalk.grey(`:shortYear.:month.:day :period -- :channel`)}
-
-          --tz=${chalk.grey(`<timezone>`)}                   Set the timezone used when dating saved streams
-                                            Default: ${chalk.grey(`Europe/London`)}
-
-          --tzFormat=${chalk.grey(`<timezone format>`)}      Set the timezone for local logs and file names, accepts en-GB or en-US
-                                            Default: ${chalk.grey(`en-GB`)}
-
-          --config=${chalk.grey(`"<path>"`)}                 Set path to config.json to use
-                                            Default: ${chalk.grey(`./config.json`)}
-
           --help                            Show this help
 
         Dev Options:
           --logs=${chalk.grey(`"<directory path>"`)}         Set directory for log files (path will be created if not exist)
+                                            Accepts tokens; ${chalk.cyanBright(`:channel`)}
+                                            Default: ${chalk.bold.whiteBright(`logs`)}
+
           --debug                           Show debug info in console
   `)
   process.exit(0)
