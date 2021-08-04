@@ -1,5 +1,5 @@
 const EventEmitter = require('events')
-const { createReadStream, createWriteStream, mkdirSync, unlinkSync, access, rename, F_OK } = require('fs')
+const { createReadStream, createWriteStream, mkdirSync, unlinkSync, access, F_OK } = require('fs')
 const { basename, dirname, resolve, join } = require('path')
 const { URL } = require('url')
 const { get } = require('https')
