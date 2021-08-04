@@ -175,6 +175,10 @@ class Downloader extends EventEmitter {
         this.logger.debug('Started parsing m3u8')
         status.parseComplete = false
       })
+      this.hls.once('quality', quality => {
+        // selected playlist quality
+        this.logger.debug(`Selected quality '${quality}'`)
+      })
       this.hls.on('segment', segment => {
         // new segment
         if (segment.ad) {
