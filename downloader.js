@@ -201,6 +201,10 @@ class Downloader extends EventEmitter {
         status.parseComplete = true
         finished()
       })
+      this.hls.on('debug', debug => {
+        // hls debug messages
+        this.logger.debug(debug)
+      })
 
       this.downloadQueue.on('add', () => {
         // new segment added to download queue
