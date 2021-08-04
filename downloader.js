@@ -28,11 +28,12 @@ class Downloader extends EventEmitter {
     this.concatQueue = null
   }
 
-  async #reserveFile (filepath, parts = 1) {
+  async #reserveFile (basePath, parts = 1) {
     return new Promise((pResolve, pReject) => {
+      const filepath = resolve(`${join(dirname(basePath), basename(basePath, `${Downloader.#fileExtension}`))}${(parts > 1) ? ` (part ${parts})` : ''}${Downloader.#fileExtension}`)
       access(resolve(filepath), F_OK, async err => {
         if (!err) { // file exist
-          return pResolve(await this.#reserveFile(resolve(`${join(dirname(filepath), basename(filepath, `${Downloader.#fileExtension}`))} (part ${++parts})${Downloader.#fileExtension}`), parts))
+          return pResolve(await this.#reserveFile(basePath, ++parts))
         }
         // file not exist
         this.logger.debug(`saving stream to file: ${filepath}`)
@@ -101,7 +102,7 @@ class Downloader extends EventEmitter {
         resolve(file.path)
       }
 
-      req.on('error', reject)
+      req.on('error', reject) // TODO: add some retry logic
       req.on('timeout', () => reject(new Error('Request Timed out.')))
       req.on('response', res => {
         const stream = res.pipe(file)
