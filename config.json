@@ -9,8 +9,5 @@
   "time": {
     "timezone": "Europe/London",
     "format": "en-GB"
-  },
-  "developer": {
-    "debug": false
   }
 }
