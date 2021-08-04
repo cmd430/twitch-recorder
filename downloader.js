@@ -190,6 +190,10 @@ class Downloader extends EventEmitter {
         }
         if (!segment.ad || this.keepAds) this.downloadQueue.add(() => this.#download(segment.uri, `${segmentTemplate}${segment.segment}.ts`))
       })
+      this.hls.once('m3u8Master', m3u8Master => {
+        // parsed master playlist
+        this.logger.debug(`Master Playlist: ${JSON.stringify(m3u8Master, null, 2)}`)
+      })
       this.hls.once('finish', info => {
         // no more new segments
         this.logger.debug(`Finished parsing m3u8: ${JSON.stringify(info, null, 2)}`)
