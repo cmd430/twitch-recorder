@@ -92,18 +92,31 @@ class Downloader extends EventEmitter {
 
   }
 
-  async #download (uri, dest) {
+  async #download (uri, dest, attempts = 1) {
     const file = createWriteStream(resolve(dest))
-    const req= get(new URL(uri))
+    const req = get(new URL(uri))
+    const maxAttempts = 2
+
+    if (attempts > 1) this.logger.debug(`Retrying segment download: ${uri}`)
 
     return new Promise((resolve, reject) => {
       const onFinish = () => {
         file.close()
-        resolve(file.path)
+        return resolve(file.path)
+      }
+      const onError = err => {
+        if (attempts >= maxAttempts) return reject(err)
+        attempts += 1
+        return this.#download(uri, dest, attempts)
+      }
+      const onTimeout = () => {
+        if (attempts >= maxAttempts) return reject(new Error('Request Timed out.'))
+        attempts += 1
+        return this.#download(uri, dest, attempts)
       }
 
-      req.on('error', reject) // TODO: add some retry logic
-      req.on('timeout', () => reject(new Error('Request Timed out.')))
+      req.on('error', onError)
+      req.on('timeout', onTimeout)
       req.on('response', res => {
         const stream = res.pipe(file)
 
@@ -221,7 +234,7 @@ class Downloader extends EventEmitter {
       })
       this.downloadQueue.on('error', error => {
         // download of segment error
-        this.logger.error(error)
+        this.logger.error(`Error downloading segment: ${error}`)
       })
       this.downloadQueue.on('idle', () => {
         // nothing to download
