@@ -97,7 +97,11 @@ class Downloader extends EventEmitter {
     const req = get(new URL(uri))
     const maxAttempts = 2
 
-    if (attempts > 1) this.logger.debug(`Retrying segment download: ${uri}`)
+    if (attempts > 1) {
+      this.logger.debug(`Retrying segment download: ${uri}`)
+    } else {
+      this.logger.debug(`Downloading segment: ${uri}`)
+    }
 
     return new Promise((resolve, reject) => {
       const onFinish = () => {
@@ -268,8 +272,10 @@ class Downloader extends EventEmitter {
         finished()
       })
 
-      await this.hls.start() // start reading m3u8
 
+      const delaySeconds = 2
+      await new Promise(r => setTimeout(r, delaySeconds * 1000)) // slight delay to allow source to be added to master playlist
+      await this.hls.start() // start reading m3u8
     } catch (error) {
       this.logger.error(error)
     }
