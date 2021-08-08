@@ -56,6 +56,9 @@ downloader.on('error', error => {
 twitch.on('live', async () => {
   state.live = true
   logger.info(`${config.channel} is ${chalk.greenBright('live')}`)
+  // DEBUG
+  downloader.test(await twitch.getStreamURI())
+  //
   downloader.start({
     url: await twitch.getStreamURI(),
     quality: config.recorder.quality
