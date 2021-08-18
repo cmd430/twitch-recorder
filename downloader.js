@@ -154,27 +154,6 @@ class Downloader extends EventEmitter {
     })
   }
 
-  // DEBUG
-  async test (url) {
-    const hlsTest = new HLS({
-      playlistURL: url,
-      quality: 'best'
-    })
-    hlsTest.on('quality', quality => {
-      // selected playlist quality
-      this.logger.debug(`TEST: Selected quality '${quality}'`)
-      if (quality !== 'source') return this.test(url)
-      this.logger.debug(`TEST: Completed Test`)
-    })
-    hlsTest.on('m3u8Master', m3u8Master => {
-      // parsed master playlist
-      this.logger.debug(`TEST: Master Playlist: ${JSON.stringify(m3u8Master, null, 2)}`)
-    })
-    hlsTest.start()
-    hlsTest.stop()
-  }
-  //
-
   async start (options = {}) {
     const PQueue = (await (await import('p-queue')).default)
 
