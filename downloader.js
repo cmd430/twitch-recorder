@@ -21,6 +21,7 @@ class Downloader extends EventEmitter {
     this.timezoneFormat = options.timezoneFormat
     this.keepSegments = options.keepSegments ?? false
     this.keepAds = options.keepAds ?? false
+    this.retrySource = options.retrySource ?? false
     this.logger = options.logger ? options.logger : console
 
     this.hls = null
@@ -196,6 +197,13 @@ class Downloader extends EventEmitter {
       this.hls.once('quality', quality => {
         // selected playlist quality
         this.logger.debug(`Selected quality '${quality}'`)
+        if (this.retrySource && quality !== 'source') {
+          this.hls.stop()
+          this.logger.debug(`Retrying for Source...`)
+          setTimeout(() => {
+            this.start(options)
+          }, 1000)
+        }
       })
       this.hls.on('segment', segment => {
         // new segment

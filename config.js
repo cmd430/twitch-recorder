@@ -13,7 +13,8 @@ const configDefaults = {
     outputDir: join('.', 'recordings'),
     downloadOptions: {
       keepSegments: false,
-      keepAds: false
+      keepAds: false,
+      retrySource: false
     }
   },
   time: {
@@ -41,7 +42,8 @@ const configArgs = {
     outputDir: minimist.outputDir,
     downloadOptions: {
       keepSegments: minimist.keepSegments,
-      keepAds: minimist.keepAds
+      keepAds: minimist.keepAds,
+      retrySource: minimist.retrySource
     }
   },
   time: {
@@ -97,6 +99,7 @@ if (minimist.help) {
           --lowLatency                      Set the Twitch stream to low latency mode
           --keepSegments                    Don't delete downloaded segments after merging
           --keepAds                         Don't skip ad segments
+          --retrySource                     Retry stream manifest if Source is not avalible
           --help                            Show this help
 
         Dev Options:

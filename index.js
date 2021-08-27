@@ -32,6 +32,7 @@ const downloader = new Downloader({
   timezoneFormat: config.time.format,
   keepSegments: config.recorder.downloadOptions.keepSegments,
   keepAds: config.recorder.downloadOptions.keepAds,
+  retrySource: config.recorder.downloadOptions.retrySource,
   logger: logger
 })
 
