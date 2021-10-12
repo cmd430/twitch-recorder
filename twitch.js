@@ -131,6 +131,7 @@ class Twitch extends EventEmitter {
         method: 'POST',
         headers: {
           'Client-ID': `${Twitch.#clientID}`,
+          'X-Device-id': 'twitch-web-wall-mason',
           'Authorization': this.clientAuth ? `OAuth ${this.clientAuth}` : '',
           'Content-Length': postData.length
         },
